@@ -1,42 +1,81 @@
 import { useState } from "react";
 
-interface User {
-  name: string;
-  email: string;
-  password: string;
-}
 
 export default function LoginForm() {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [userData, setUserData] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent<HTMLFormElement>) => {
+  // 🔹 Iniciar sesión
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setError(null);
 
-    // Simulación de usuario (Reemplazar luego con API)
-    const fakeUser: User = { email: "juan@gmail.com", name: "juan", password: "1234" };
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (email == fakeUser.email && password == fakeUser.password) {
-      setUser(fakeUser);
-      setError(null);
-    } else {
-      setError("Correo o contraseña incorrectos.");
+      const data = await response.json();
+      if (response.ok) {
+        setToken(data.token);
+        setUserData(null); // Reset de datos previos
+      } else {
+        setError(data.message || "Error en el inicio de sesión");
+      }
+    } catch (err) {
+      setError("No se pudo conectar con el servidor.");
     }
   };
 
-  const handleLogout = () => {
-    setUser(null);
+  // 🔹 Obtener datos del usuario (ruta protegida)
+  const handleGetUser = async () => {
+    if (!token) return;
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/user", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setUserData(JSON.stringify(data, null, 2));
+      } else {
+        setError("No autorizado.");
+      }
+    } catch (err) {
+      setError("Error al obtener el usuario.");
+    }
+  };
+
+  // 🔹 Cerrar sesión
+  const handleLogout = async () => {
+    if (!token) return;
+    try {
+      await fetch("http://127.0.0.1:8000/api/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+    } catch (err) {}
+
+    setToken(null);
+    setUserData(null);
   };
 
   return (
     <div style={styles.container}>
-      {user ? (
+      {token ? (
         <div style={styles.card}>
-          <h2>Bienvenido, {user.name}!</h2>
-          <p>Email: {user.email}</p>
-          <button onClick={handleLogout} style={styles.button}>Cerrar Sesión</button>
+          <h2>Bienvenido!</h2>
+          <p><strong>Token:</strong> {token}</p>
+          <button onClick={handleGetUser} style={styles.button}>Obtener Datos de Usuario</button>
+          <button onClick={handleLogout} style={styles.buttonRed}>Cerrar Sesión</button>
+          {userData && (
+            <pre style={styles.pre}>{userData}</pre>
+          )}
         </div>
       ) : (
         <form onSubmit={handleLogin} style={styles.card}>
@@ -64,6 +103,7 @@ export default function LoginForm() {
     </div>
   );
 }
+
 
 const styles: Record<string, React.CSSProperties> = {
   container: {
